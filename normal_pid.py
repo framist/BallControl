@@ -3,73 +3,21 @@
 滚球控制系统
 framist
 """ 
-from numbers import Number
+
 import RPi.GPIO as GPIO
-
-
 # opencv支持
 import cv2 
 import numpy as np 
-
 # 图形处理支持
 from imutils.video import VideoStream
 from imutils.video import FPS
-
 # 时间支持
 import time
-
-import copy
-
-# 控制方向
-电机方向 = [0,0] # 0/1 1:电机位置增加
-电机位置 = [0,0] # +-整数
-电机GPIO = [[11,12],[15,16]] # 脉冲,方向 
-
-def 改变电机方向(电机, 方向):
-    GPIO.output(电机GPIO[电机][1], 方向)
-    电机方向[电机] = 方向
-    time.sleep(20e-6) # >= 5e-6
-
-def 电机脉冲(电机):
-    GPIO.output(电机GPIO[电机][0],1)
-    time.sleep(0.3e-3) # >= 1.2e-6
-    GPIO.output(电机GPIO[电机][0],0)
-    time.sleep(0.3e-3)
+# my
+from myPID import PID
+from myStepMotor import StepMotor
 
 
-def 改变电机位置(电机, 目标位置): # 一路
-    d = 1 if 目标位置-电机位置[电机] > 0 else 0
-    if d == 电机方向[电机]:
-        print("保留方向：",电机方向)
-        pass
-    else:
-        改变电机方向(电机, 1-电机方向[电机])
-        print("改变方向：",电机方向)
-
-    for _ in range(abs(电机位置[电机]-目标位置)):
-        电机脉冲(电机)
-    电机位置[电机]=目标位置
-    
-
-def 发送电机脉冲(电机, 脉冲数): # +-
-    d = 1 if 脉冲数 > 0 else 0
-    if d == 电机方向[电机]:
-        # print("保留方向：",电机方向)
-        pass
-    else:
-        改变电机方向(电机, 1-电机方向[电机])
-        # print("改变方向：",电机方向)
-
-    for _ in range(abs(脉冲数)):
-        电机脉冲(电机)
-    电机位置[电机]=电机位置[电机]+脉冲数
-    assert abs(电机位置[电机]) < 1500
-
-pjs = 0
-def GPIO_test():
-    
-    
-    time.sleep(0.5)
 
 def GPIO_init():
     GPIO_end()
@@ -77,48 +25,16 @@ def GPIO_init():
     # / 脉冲 方向 / 
     # 使用 11 12 / 15 16 
     GPIO.setmode(GPIO.BOARD)
-    GPIO.setup([i for j in 电机GPIO for i in j], GPIO.OUT, initial=0)
-    
-
 
 def GPIO_end():
     GPIO.cleanup()
 
-def PID_control():
-
-    pass
-
-
-def PID_control_plus(x1: int, x2: int, x3: int, goal: int, KPID: list) -> float:
-    last_last_err = x1 - goal
-    last_err = x2 - goal
-    now_err = x3 - goal
-    
-    KP, KI, KD = KPID
-    change_val = KP * (now_err - last_err) + KI * now_err + KD * (now_err - 2 * last_err + last_last_err)
-    print("KP*(now_err - last_err)==", KP * (now_err - last_err) )
-    print("KI*now_err==",KI * now_err)
-    print("KD*(now_err - 2 * last_err + last_last_err)==",KD * (now_err - 2 * last_err + last_last_err))
-    print("change_val=",change_val)
-    return change_val
-
-x1,x2,x3 = None,None,None
-def control_x(x):
-    global x1,x2,x3
-    if x1 is None:
-        x1,x2,x3 = x,x,x
-    else:
-        x1 = x2
-        x2 = x3
-        x3 = x
-    K=40#用k来调整体比例
-    # change_val = PID_control_plus(x1,x2,x3,200,[0.35987*K,0.020534*K,0.2767*K])
-    change_val = PID_control_plus(x1,x2,x3,150,[0.35987*K,0*K,0*K])
-    发送电机脉冲(0,int(change_val))
-
 def main():
     GPIO_init()
-    # GPIO_test()
+    xPID = None
+    
+    xStepMotor = StepMotor([11,12])
+
     print("[INFO] starting video stream...")
     vs = VideoStream(src=0, usePiCamera=True,resolution=(480,368)).start()
     time.sleep(1.0)
@@ -152,7 +68,7 @@ def main():
             minRadius - 最小圆半径。
             maxRadius - 最大圆半径。
             """
-            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1.5, 1000,param1=80,param2=20,minRadius=5,maxRadius=8)
+            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1.5, 1000,param1=80,param2=20,minRadius=5,maxRadius=9)
             # (GrayImage,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,   cv2.THRESH_BINARY,3,5)
             if circles is not None:
                 circles = np.uint16(np.around(circles.astype(np.double),3))
@@ -162,8 +78,10 @@ def main():
                     cv2.circle(cimg,(i[0],i[1]),i[2],(0,255,0),2)
                     # draw the center of the circle
                     cv2.circle(cimg,(i[0],i[1]),2,(0,0,255),3)
-                # -----------控制
-                control_x(circles[0][0][1])
+                # -----------控制---------------
+                if xPID is None:
+                    xPID = PID(150,circles[0][0][1][1,0.35987,0.0,10.2767])
+                xStepMotor.改变电机位置(0,int(xPID.control(circles[0][0][1])))
             else:
                 pass  
 
@@ -191,14 +109,15 @@ def main():
                 break
 
             # GPIO_test()
-    except:
-        pass
+    except  Exception as e:
+        print(e)
+        
     finally:
 
         # 善后处理：
-        print("======自动停止======")
-        time.sleep(1)
-        改变电机位置(0, 0)
+        print("==自动停止==")
+        time.sleep(3)
+        xStepMotor.改变电机位置(0, 0)
         # 如果我们使用网络摄像头，释放指针
         vs.stop()
         # 关闭所有窗口

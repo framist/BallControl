@@ -54,16 +54,16 @@ def 改变电机位置(电机, 目标位置): # 一路
 def 发送电机脉冲(电机, 脉冲数): # +-
     d = 1 if 脉冲数 > 0 else 0
     if d == 电机方向[电机]:
-        print("保留方向：",电机方向)
+        # print("保留方向：",电机方向)
         pass
     else:
         改变电机方向(电机, 1-电机方向[电机])
-        print("改变方向：",电机方向)
+        # print("改变方向：",电机方向)
 
     for _ in range(abs(脉冲数)):
         电机脉冲(电机)
-    电机位置[电机]=电机位置[电机]+脉冲数
-    assert abs(电机位置[电机]) < 2000
+        电机位置[电机] += d*2-1
+        assert abs(电机位置[电机]) < 1200
 
 pjs = 0
 def GPIO_test():
@@ -96,21 +96,25 @@ def PID_control_plus(x1: int, x2: int, x3: int, goal: int, KPID: list) -> float:
     
     KP, KI, KD = KPID
     change_val = KP * (now_err - last_err) + KI * now_err + KD * (now_err - 2 * last_err + last_last_err)
-    print("change_val:",change_val)
+    print("p==", KP * (now_err - last_err) )
+    print("i==",KI * now_err)
+    print("d==",KD * (now_err - 2 * last_err + last_last_err))
+    print("change_val=",change_val)
     return change_val
 
 x1,x2,x3 = None,None,None
-def control_x(x,goal):
+def control_x(x):
+    goal = 150
     global x1,x2,x3
-    x3 = x
     if x1 or x2 is None:
-        x1,x2,x3 = goal,goal,x
+        x1,x2 = goal,goal
     else:
-        x2 = x3
         x1 = x2
-    K=10#用k来调整体比例
+        x2 = x3
+    x3 = x
+    K=0.01#用k来调整体比例
     # change_val = PID_control_plus(x1,x2,x3,200,[0.35987*K,0.020534*K,0.2767*K])
-    change_val = PID_control_plus(x1,x2,x3,150,[0.35987*K,0*K,0*K])
+    change_val = PID_control_plus(x1,x2,x3,goal,[0.35987*K,0.0*K,10.2767*K])
     发送电机脉冲(0,int(change_val))
 
 def main():
@@ -149,7 +153,7 @@ def main():
             minRadius - 最小圆半径。
             maxRadius - 最大圆半径。
             """
-            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1.5, 1000,param1=80,param2=20,minRadius=5,maxRadius=8)
+            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1.5, 1000,param1=80,param2=20,minRadius=5,maxRadius=9)
             # (GrayImage,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,   cv2.THRESH_BINARY,3,5)
             if circles is not None:
                 circles = np.uint16(np.around(circles.astype(np.double),3))
@@ -188,8 +192,9 @@ def main():
                 break
 
             # GPIO_test()
-    except:
-        pass
+    except  Exception as e:
+        print(e)
+        
     finally:
 
         # 善后处理：
