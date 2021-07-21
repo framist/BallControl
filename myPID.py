@@ -9,12 +9,14 @@ class PID():
         last_err = self.last_x - self.goal
         now_err = x - self.goal
         self.sum_now_err += now_err
-
-
+        
         u_k = self.K*self.P * (now_err) + \
               self.K*self.I * self.sum_now_err + \
               self.K*self.D * (now_err - last_err )
-
+        print("P",self.K*self.P * (now_err))
+        print("I",self.K*self.I * self.sum_now_err)
+        print("D",self.K*self.D * (now_err - last_err ))   
+        self.last_x = x     
         return u_k
 
 # sum_now_err = 0

@@ -40,8 +40,8 @@ class StepMotor:
             self.checkProtect()
         self.loaction = l
 
-    def 发送电机脉冲系列(self, 脉冲数):  # +-
-        d = 1 if 脉冲数 > 0 else 0
+    def 发送电机脉冲系列(self, 正负脉冲数):  # +-
+        d = 1 if 正负脉冲数 > 0 else 0
         if d == self.direction:
             # print("保留方向：",电机方向)
             pass
@@ -49,7 +49,7 @@ class StepMotor:
             self.changeDirection(1-self.direction)
             # print("改变方向：",电机方向)
 
-        for _ in range(abs(脉冲数)):
+        for _ in range(abs(正负脉冲数)):
             self.loaction += d*2-1
             self.电机脉冲()
             self.checkProtect()
@@ -63,10 +63,12 @@ if __name__ == '__main__':
     GPIO.cleanup()
     GPIO.setmode(GPIO.BOARD)
 
-    xStepMotor = StepMotor([11, 12])
-    xStepMotor.改变电机位置(500)
-    xStepMotor.改变电机位置(-500)
-    xStepMotor.改变电机位置(0)
+    stepMotor = StepMotor([11, 12])
+    while True:
+        stepMotor.发送电机脉冲系列(500)
+        stepMotor.发送电机脉冲系列(-500)
+    # stepMotor.发送电机脉冲系列(-500)
+    # xStepMotor.改变电机位置(0)
 
     GPIO.cleanup()
 
