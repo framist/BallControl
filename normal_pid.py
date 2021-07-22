@@ -41,19 +41,39 @@ def T_control(stepMotor: StepMotor,l:int):
     t.start()
 
 def ser_control(ser,xy,l:int):
-    ser.write(f'{xy},{l}\n'.encode('utf-8'))
-
+    # 单次限幅
+    # l = l if abs(l) < 100 else l//abs(l)*100
+    print(f'{xy},{l}\n'.encode('utf-8'))
+    ser.write(f',{xy},{l}\n'.encode('utf-8'))
+xPID = None
+yPID = None
+goal_xy = {'x':166,'y':166}
+def on_EVENT_LBUTTONDOWN(event, x, y, flags, param):
+    global goal_xy
+    global xPID
+    global yPID
+    if event == cv2.EVENT_LBUTTONDOWN:
+        goal_xy['x'] = x
+        goal_xy['y'] = y
+        xPID = None
+        yPID = None
+        print(f'mouse check: {goal_xy}')
+        
 def main():
     GPIO_init()
+    global goal_xy
+    global xPID
+    global yPID
     ser = serial.Serial("/dev/ttyAMA0", 9600)
     xPID = None
+    yPID = None
     
     # xStepMotor = StepMotor([11,12])
 
     print("[INFO] starting video stream...")
     vs = VideoStream(src=0, usePiCamera=True,resolution=(480,368)).start()
     time.sleep(1.0)
-
+    
 
     # 初始化FPS吞吐量估计器
     fps = FPS().start()
@@ -65,7 +85,7 @@ def main():
             frame = vs.read()
             cimg = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1.5, 1000, param1=80, param2=18, minRadius=6, maxRadius=10)
+            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1, 1000, param1=80, param2=13, minRadius=6, maxRadius=10)
             
             if circles is not None:
                 circles = np.uint16(np.around(circles.astype(np.double), 3))
@@ -74,12 +94,17 @@ def main():
                     # draw the outer circle / the center of the circle
                     cv2.circle(cimg, (i[0], i[1]), i[2], (0, 255, 0), 2)
                     cv2.circle(cimg, (i[0], i[1]), 2, (0, 0, 255), 3)
+
                 # -----------控制---------------
                 if xPID is None:
-                    # xPID = PID(150,circles[0][0][1],[0.2,3.987,0.01,40.2767])
-                    xPID = PID(150,circles[0][0][1],[0.2,3,0.0,40])
+                    xPID = PID(goal_xy['x'],circles[0][0][0],[1,1,0.01,40])
+                ser_control(ser,0,int(xPID.control(circles[0][0][0])))
+                time.sleep(0.01)
+                if yPID is None:
+                    yPID = PID(goal_xy['y'],circles[0][0][1],[1,1,0.01,40])
+                ser_control(ser,1,int(yPID.control(circles[0][0][1])))
+
                 # T_control(xStepMotor,int(xPID.control(circles[0][0][1])))
-                ser_control(ser,0,int(xPID.control(circles[0][0][1])))
             else:
                 pass
 
@@ -88,6 +113,7 @@ def main():
             fps.stop()
 
             # 帧上的信息集
+            cv2.circle(cimg, (goal_xy['x'], goal_xy['y']), 3, (255, 255, 255), thickness = 1)
             info = [
                 ("circle", "---" if circles is None else f"{(circles)}"),
                 ("FPS", "{:.2f}".format(fps.fps())),
@@ -98,7 +124,8 @@ def main():
                             cv2.FONT_HERSHEY_PLAIN, 1, (255, 200, 200), 2)
 
             cv2.imshow("cimg", cimg)
-
+            cv2.setMouseCallback("cimg", on_EVENT_LBUTTONDOWN)
+            
     except  Exception as e:
         print(e)
         
@@ -106,6 +133,7 @@ def main():
 
         # 善后处理：
         print("==自动停止==")
+        ser.write(f',-1,0\n'.encode('utf-8'))
         time.sleep(1)
         # xStepMotor.改变电机位置(0)
         # 如果我们使用网络摄像头，释放指针

@@ -9,13 +9,16 @@ class PID():
         last_err = self.last_x - self.goal
         now_err = x - self.goal
         self.sum_now_err += now_err
-        
+
+        u_k_d = self.K*self.D * (now_err - last_err )
+        u_k_d = u_k_d if abs(u_k_d) < 100 else u_k_d//abs(u_k_d)*100
+        u_k_d = u_k_d if abs(u_k_d) > 2 else 0
         u_k = self.K*self.P * (now_err) + \
               self.K*self.I * self.sum_now_err + \
-              self.K*self.D * (now_err - last_err )
+              u_k_d
         print("P",self.K*self.P * (now_err))
         print("I",self.K*self.I * self.sum_now_err)
-        print("D",self.K*self.D * (now_err - last_err ))   
+        print("D",u_k_d)   
         self.last_x = x     
         return u_k
 
