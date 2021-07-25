@@ -4,15 +4,18 @@ class PID():
         self.goal = goal
         self.last_x = x
         self.K, self.P, self.I, self.D = KPID
-        pass
+        
+    def renew(self,goal):
+        self.goal = goal
+
     def control(self,x) -> float :
         last_err = self.last_x - self.goal
         now_err = x - self.goal
         self.sum_now_err += now_err
 
         u_k_d = self.K*self.D * (now_err - last_err )
-        u_k_d = u_k_d if abs(u_k_d) < 100 else u_k_d//abs(u_k_d)*100
-        u_k_d = u_k_d if abs(u_k_d) > 2 else 0
+        u_k_d = u_k_d if abs(u_k_d) < 500 else u_k_d//abs(u_k_d)*500
+        u_k_d = u_k_d if abs(u_k_d) > 10 else 0
         u_k = self.K*self.P * (now_err) + \
               self.K*self.I * self.sum_now_err + \
               u_k_d

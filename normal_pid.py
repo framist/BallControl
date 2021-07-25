@@ -47,7 +47,7 @@ def ser_control(ser,xy,l:int):
     ser.write(f',{xy},{l}\n'.encode('utf-8'))
 xPID = None
 yPID = None
-goal_xy = {'x':166,'y':166}
+goal_xy = {'x':250,'y':250}
 def on_EVENT_LBUTTONDOWN(event, x, y, flags, param):
     global goal_xy
     global xPID
@@ -55,8 +55,8 @@ def on_EVENT_LBUTTONDOWN(event, x, y, flags, param):
     if event == cv2.EVENT_LBUTTONDOWN:
         goal_xy['x'] = x
         goal_xy['y'] = y
-        xPID = None
-        yPID = None
+        xPID.renew(goal_xy['x'])
+        yPID.renew(goal_xy['y'])
         print(f'mouse check: {goal_xy}')
         
 def main():
@@ -64,14 +64,13 @@ def main():
     global goal_xy
     global xPID
     global yPID
-    ser = serial.Serial("/dev/ttyAMA0", 9600)
-    xPID = None
-    yPID = None
+    ser = serial.Serial("/dev/ttyAMA0", 115200)
     
     # xStepMotor = StepMotor([11,12])
 
     print("[INFO] starting video stream...")
-    vs = VideoStream(src=0, usePiCamera=True,resolution=(480,368)).start()
+    # vs = VideoStream(src=0, usePiCamera=True,resolution=(480,368)).start()
+    vs = VideoStream(src=0, usePiCamera=True,resolution=(656,496)).start()
     time.sleep(1.0)
     
 
@@ -85,7 +84,8 @@ def main():
             frame = vs.read()
             cimg = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1, 1000, param1=80, param2=13, minRadius=6, maxRadius=10)
+            # circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1, 1000, param1=80, param2=13, minRadius=6, maxRadius=10)
+            circles = cv2.HoughCircles(cimg, cv2.HOUGH_GRADIENT, 1, 1000, param1=80, param2=13, minRadius=11, maxRadius=15)
             
             if circles is not None:
                 circles = np.uint16(np.around(circles.astype(np.double), 3))
@@ -97,11 +97,13 @@ def main():
 
                 # -----------控制---------------
                 if xPID is None:
-                    xPID = PID(goal_xy['x'],circles[0][0][0],[1,1,0.01,40])
+                    # xPID = PID(goal_xy['x'],circles[0][0][0],[1,1,0.01,30])
+                    xPID = PID(goal_xy['x'],circles[0][0][0],[0.73,1,0.011,9])
                 ser_control(ser,0,int(xPID.control(circles[0][0][0])))
-                time.sleep(0.01)
+                time.sleep(0.02)
                 if yPID is None:
-                    yPID = PID(goal_xy['y'],circles[0][0][1],[1,1,0.01,40])
+                    # yPID = PID(goal_xy['y'],circles[0][0][1],[1,1,0.01,40])
+                    yPID = PID(goal_xy['y'],circles[0][0][1],[1,1,0.011,9])
                 ser_control(ser,1,int(yPID.control(circles[0][0][1])))
 
                 # T_control(xStepMotor,int(xPID.control(circles[0][0][1])))
